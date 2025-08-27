@@ -1,0 +1,110 @@
+// SPDX-License-Identifier: MIT
+   pragma solidity ^0.8.21;
+
+// Realice la importación de las siguientes librerias OpenZeppelin
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+// El objetivo de este smart contract es la creación de Tokens ER721.
+contract ArtToken is ERC721, Ownable {
+   
+// Declaraciones iniciales del smart contract, su ejecutación se realiza al desplegarlo. 
+constructor(string memory _name, string memory _symbol)
+    ERC721(_name, _symbol)  //Recibe el nombre que le demos al NFT
+    Ownable(msg.sender) {} // Recibira el nombre de una abrevaitura que le desemos dar.
+
+   
+// Contador con un ID de identificación unica de cada NFT creado. 
+    uint256 COUNTER;
+
+// El precio esticulado por cada NFT creado será por la cuantina de: 1 ethers.
+    uint256 public fee = 1 ether;
+
+// Las estrucutra que debera llevar cada NFT será la siguiente: 
+    struct Art {
+        string name; // El nombre que se le dará a la obra creada.
+        uint256 id; // ID de identificación personalizada.
+        uint256 dna; // Número que le da características
+        uint8 level; // Nivel de la obra.
+        uint8 rarity; // Se difinira que tan rara es la obra.
+    }
+
+// Estructura de almacenamiento para mantener obras de arte
+    Art [] public art_works;
+
+// Lugar que almacenará todas las obras creadas
+    event NewArtWork (address indexed owner, uint256 id, uint256 dna);
+   
+// Se implementa una función interna, tendrá la función de gener número pseudoaleatorio
+//  Usa block.timestamp y msg.sender (solo duso educativo o de prueba)
+    function _createRandomNum(uint256 _mod) internal view returns (uint256){
+        bytes32 has_randomNum = keccak256(abi.encodePacked(block.timestamp, msg.sender));
+        uint256 randonNum = uint256(has_randomNum);
+        return randonNum % _mod;
+    }
+
+//  Otra función interna, con el objetuvo de 1 crear un NFT
+// Se estipulan aleatoriamente ADA (DNA) 
+    function _createArtWork(string memory _name) internal {
+        uint8 randRarity = uint8(_createRandomNum(1000));
+        uint256 randDna = _createRandomNum(10**16);
+        Art memory newArtWork = Art(_name, COUNTER, randDna, 1, randRarity);
+        art_works.push(newArtWork);
+        _safeMint(msg.sender, COUNTER);
+        emit NewArtWork(msg.sender, COUNTER, randDna);
+        COUNTER++;
+    }
+
+// Permite al propietario del contrato actualizar el precio de los NFTs
+    function updateFee(uint256 _fee) external onlyOwner {
+        fee = _fee;
+    }
+
+// Regresa la información completa del contrato 
+// La dirección del contrato desplegado y saldo en moenda ethers
+    function infoSmartContract() public view returns(address, uint256){
+        address SC_address = address(this);
+        uint256 SC_money = address(this).balance / 10**18;
+        return (SC_address, SC_money);
+    }
+
+// Función de opcion de devuelve todas las obras que fueron creadas 
+    function getArtWorks() public view returns (Art [] memory){
+        return art_works;
+    }
+
+// Función de devuelve los NFTs que tiene en su posee una dirección específica
+    function getOwnerArtWork(address _owner) public view returns (Art [] memory){
+        Art [] memory result = new Art[](balanceOf(_owner));
+        uint256 counter_owner = 0;
+        for (uint256 i = 0; i < art_works.length; i++){
+            if (ownerOf(i) == _owner){
+                result[counter_owner] = art_works[i];
+                counter_owner++;
+            }
+        }
+        return result;
+    }
+
+ // Funciones principales del NFT
+ // Función que  pública para la comprar o crear de un NFT
+ // Se requiere que el usuario pague al menos el "fee"
+    function createRandomArtWork(string memory _name) public payable {
+        require(msg.value >= fee, "Debes pagar el precio del NFT");
+        _createArtWork(_name);
+    }
+
+ // Función de retirar las ganacias opbtenidad, función que solo puede realizar el propietario 
+    function withdraw() external payable onlyOwner{
+        address payable _owner = payable(owner());
+        _owner.transfer(address(this).balance);
+    }
+
+  // Función para subir de nivel un NFT  que uno desea.
+  // Solo puede realizar la función el dueño del NFT puede hacerlo
+    function levelUp(uint256 _artId) public {
+        require(ownerOf(_artId) == msg.sender, "No eres el dueno del NFT");
+        Art storage art = art_works[_artId];
+        art.level++;
+    }
+}
