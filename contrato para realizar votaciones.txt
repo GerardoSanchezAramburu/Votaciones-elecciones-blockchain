@@ -1,0 +1,157 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+// Este smart contract tiene la funcion de realizar votaciones y todo relacionado a un proceso basico.
+contract votacionelecciones {
+    address public owner; // La dirrecion del dueño será pública
+
+// El contructor del proyecto.
+    constructor() {
+        owner = msg.sender;
+    }
+
+    // Los datos  basicos del los candidatos de las elecciones.
+    struct Candidato {
+        bytes32 id;   // Id del candidato 
+        uint256 votos;  // votos del candidato
+        bool existe;  // validar
+    }
+
+    // nombre e información del candidato
+    mapping(string => Candidato) private infoCandidato;
+
+    // Lista de los candidatos que se encuentran participando
+    string[] private listaCandidatos;
+
+    //Control del processo de votación.
+    mapping(address => bool) private yaVoto;
+
+    // Eventos 
+    event CandidatoRegistrado(string nombre, bytes32 idHash);
+    event VotoEmitido(address indexed votante, string candidato);
+
+    // Función que solo puede realizar el owner.
+    modifier soloOwner() {
+        require(msg.sender == owner, "Solo el owner");
+        _;
+    }
+
+    /// Requisitos para el registro del candidatos.
+    function Representar(
+        string memory _nombrePersona,
+        uint256 _edadPersona,
+        bytes32 _idPersona
+    ) public /* soloOwner */ {
+        require(bytes(_nombrePersona).length > 0, "Nombre vacio");
+        require(!infoCandidato[_nombrePersona].existe, "Candidato ya existe");
+    
+    // Hash del candidato.
+        bytes32 hash_Candidato = keccak256(
+            abi.encodePacked(_nombrePersona, _edadPersona, _idPersona)
+        );
+    
+    // Con esta funcion se puede checar la información del candidato y si existe.
+        infoCandidato[_nombrePersona] = Candidato({
+            id: hash_Candidato,
+            votos: 0,
+            existe: true
+        });
+
+        listaCandidatos.push(_nombrePersona);
+
+        emit CandidatoRegistrado(_nombrePersona, hash_Candidato);
+    }
+    // Ver lista de candidatos registrados 
+    function VerCandidatos() public view returns (string[] memory) {
+        return listaCandidatos;
+    }   
+
+    // Los interesados podran votar una vez, con su dirrreción. 
+    function Votar(string memory _candidato) public {
+        require(!yaVoto[msg.sender], "Ya has votado");
+        require(infoCandidato[_candidato].existe, "Candidato no existe");
+
+        yaVoto[msg.sender] = true;
+        infoCandidato[_candidato].votos += 1;
+
+        emit VotoEmitido(msg.sender, _candidato);
+    }
+
+    // Checar los votos de un candidato especifico
+    function VerVotos(string memory _candidato) public view returns (uint256) {
+        require(infoCandidato[_candidato].existe, "Candidato no existe");
+        return infoCandidato[_candidato].votos;
+    }
+
+    /// Ver resultados completos: ID hash, nombre, votos.
+    function VerResultados() public view returns (string memory) {
+        bytes memory out;
+        for (uint256 i = 0; i < listaCandidatos.length; i++) {
+            string memory nombre = listaCandidatos[i];
+            Candidato memory c = infoCandidato[nombre];
+
+            out = abi.encodePacked(
+                out,
+                "ID: 0x",
+                toHexString(c.id),
+                " - ",
+                nombre,
+                ": ",
+                uint2str(c.votos),
+                " votos\n"
+            );
+        }
+
+        return string(out);
+    }
+
+    // Función.
+    function uint2str(uint256 _i) internal pure returns (string memory str) {
+        if (_i == 0) return "0";
+        uint256 j = _i;
+        uint256 length;
+        while (j != 0) {
+            length++;
+            j /= 10;
+        }
+        bytes memory bstr = new bytes(length);
+        uint256 k = length;
+        j = _i;
+        while (j != 0) {
+            bstr[--k] = bytes1(uint8(48 + (j % 10)));
+            j /= 10;
+        }
+        return string(bstr);
+    }
+
+    // función 
+    function toHexString(bytes32 data) internal pure returns (string memory) {
+        bytes memory alphabet = "0123456789abcdef";
+        bytes memory str = new bytes(64);
+        for (uint256 i = 0; i < 32; i++) {
+            str[i * 2]     = alphabet[uint8(data[i] >> 4)];
+            str[i * 2 + 1] = alphabet[uint8(data[i] & 0x0f)];
+        }
+        return string(str);
+    }
+
+    
+    // El número total de candidatos registrados.
+    function totalCandidatos() public view returns (uint256) {
+        return listaCandidatos.length;
+    }
+
+    // Obtener candidato por indice
+    function candidatoPorIndice(uint256 index) public view returns (string memory nombre, bytes32 id, uint256 votos) {
+        require(index < listaCandidatos.length, "Indice fuera de rango");
+        nombre = listaCandidatos[index];
+        Candidato memory c = infoCandidato[nombre];
+        return (nombre, c.id, c.votos);
+    }
+
+    /// Checar si una dirección ya realizo su voto
+    function haVotado(address cuenta) public view returns (bool) {
+        return yaVoto[cuenta];
+    }
+}
+
